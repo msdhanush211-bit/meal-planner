@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Calendar, BookOpen, ShoppingCart } from 'lucide-react';
+import { Calendar, BookOpen, ShoppingCart, LogOut, User } from 'lucide-react';
+import { useSession, signOut } from 'next-auth/react';
 
 const navItems = [
   { href: '/', label: 'Planner', icon: Calendar },
@@ -12,6 +13,7 @@ const navItems = [
 
 export default function Navbar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
 
   return (
     <aside className="fixed left-0 top-0 h-full w-56 bg-white border-r border-gray-200 flex flex-col p-4">
@@ -19,7 +21,8 @@ export default function Navbar() {
         <h1 className="text-xl font-bold text-green-600">🍽️ MealPlanner</h1>
         <p className="text-xs text-gray-400 mt-1">Plan your week</p>
       </div>
-      <nav className="flex flex-col gap-2">
+
+      <nav className="flex flex-col gap-2 flex-1">
         {navItems.map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
@@ -35,6 +38,37 @@ export default function Navbar() {
           </Link>
         ))}
       </nav>
+
+      <div className="border-t border-gray-100 pt-4 mt-4">
+        {session ? (
+          <div>
+            <div className="flex items-center gap-2 px-3 py-2 mb-2">
+              <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center">
+                <User size={14} className="text-green-600" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-700">{session.user?.name}</p>
+                <p className="text-xs text-gray-400">{session.user?.email}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => signOut({ callbackUrl: '/login' })}
+              className="flex items-center gap-2 px-3 py-2 w-full rounded-lg text-sm text-red-500 hover:bg-red-50 transition-all"
+            >
+              <LogOut size={16} />
+              Sign out
+            </button>
+          </div>
+        ) : (
+          <Link
+            href="/login"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+          >
+            <User size={16} />
+            Sign in
+          </Link>
+        )}
+      </div>
     </aside>
   );
 }

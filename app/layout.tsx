@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import Navbar from '@/components/Navbar';
+import { SessionProvider } from 'next-auth/react';
 
 export const metadata: Metadata = {
   title: 'Meal Planner',
@@ -15,10 +16,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <Navbar />
-        <main className="ml-56 min-h-screen p-8 bg-gray-50">
-          {children}
-        </main>
+        <SessionProvider>
+          <Navbar />
+          <main className="ml-56 min-h-screen p-8 bg-gray-50">
+            {children}
+          </main>
+        </SessionProvider>
       </body>
     </html>
   );

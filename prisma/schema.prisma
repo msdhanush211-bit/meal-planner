@@ -1,0 +1,31 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL")
+}
+
+model Recipe {
+  id        String   @id @default(cuid())
+  name      String
+  emoji     String
+  calories  Int
+  time      String
+  category  String
+  fav       Boolean  @default(false)
+  notes     String?
+  createdAt DateTime @default(now())
+}
+
+model MealPlan {
+  id             String @id @default(cuid())
+  day            String
+  meal           String
+  recipeId       String
+  recipeName     String
+  recipeEmoji    String
+  recipeCalories Int
+}

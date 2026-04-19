@@ -1,18 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Clock, Plus, X } from 'lucide-react';
-
-const INITIAL_RECIPES = [
-  { id: '1', name: 'Oats & Berries', emoji: '🥣', calories: 320, time: '10 min', category: 'breakfast', fav: true },
-  { id: '2', name: 'Pancakes', emoji: '🥞', calories: 450, time: '20 min', category: 'breakfast', fav: false },
-  { id: '3', name: 'Caesar Salad', emoji: '🥗', calories: 280, time: '15 min', category: 'lunch', fav: true },
-  { id: '4', name: 'Club Sandwich', emoji: '🥪', calories: 520, time: '10 min', category: 'lunch', fav: false },
-  { id: '5', name: 'Spaghetti Bolognese', emoji: '🍝', calories: 620, time: '40 min', category: 'dinner', fav: true },
-  { id: '6', name: 'Chicken Curry', emoji: '🍛', calories: 580, time: '35 min', category: 'dinner', fav: false },
-  { id: '7', name: 'Scrambled Eggs', emoji: '🥚', calories: 250, time: '8 min', category: 'breakfast', fav: false },
-  { id: '8', name: 'Veggie Noodles', emoji: '🍜', calories: 380, time: '20 min', category: 'dinner', fav: false },
-];
 
 type Recipe = {
   id: string;
@@ -22,47 +11,74 @@ type Recipe = {
   time: string;
   category: string;
   fav: boolean;
+  notes?: string;
 };
 
 const EMOJIS = ['🥣','🥞','🥗','🥪','🍝','🍛','🥚','🍜','🍲','🥘','🍱','🥙','🌮','🍕','🥑','🍣','🍔','🥩','🍗','🥦'];
 
 export default function RecipesPage() {
-  const [recipes, setRecipes] = useState<Recipe[]>(INITIAL_RECIPES);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [selected, setSelected] = useState<Recipe | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
-    name: '',
-    emoji: '🍽️',
-    calories: '',
-    time: '',
-    category: 'breakfast',
+    name: '', emoji: '🍽️', calories: '', time: '', category: 'breakfast',
   });
+
+  useEffect(() => {
+    fetchRecipes();
+  }, []);
+
+const fetchRecipes = async () => {
+  try {
+    const res = await fetch('/api/recipes');
+    const data = await res.json();
+    setRecipes(Array.isArray(data) ? data : []);
+  } catch (error) {
+    console.error('Failed to fetch recipes:', error);
+    setRecipes([]);
+  } finally {
+    setLoading(false);
+  }
+};
+
+  const addRecipe = async () => {
+    if (!form.name || !form.calories || !form.time) return;
+    try {
+      const res = await fetch('/api/recipes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name,
+          emoji: form.emoji,
+          calories: parseInt(form.calories),
+          time: form.time,
+          category: form.category,
+        }),
+      });
+      const newRecipe = await res.json();
+      setRecipes(prev => [newRecipe, ...prev]);
+      setForm({ name: '', emoji: '🍽️', calories: '', time: '', category: 'breakfast' });
+      setShowForm(false);
+    } catch (error) {
+      console.error('Failed to add recipe:', error);
+    }
+  };
+
+  const deleteRecipe = async (id: string) => {
+    try {
+      await fetch(`/api/recipes?id=${id}`, { method: 'DELETE' });
+      setRecipes(prev => prev.filter(r => r.id !== id));
+      setSelected(null);
+    } catch (error) {
+      console.error('Failed to delete recipe:', error);
+    }
+  };
 
   const toggleFav = (id: string) => {
     setRecipes(prev => prev.map(r => r.id === id ? { ...r, fav: !r.fav } : r));
-  };
-
-  const deleteRecipe = (id: string) => {
-    setRecipes(prev => prev.filter(r => r.id !== id));
-    setSelected(null);
-  };
-
-  const addRecipe = () => {
-    if (!form.name || !form.calories || !form.time) return;
-    const newRecipe: Recipe = {
-      id: Date.now().toString(),
-      name: form.name,
-      emoji: form.emoji,
-      calories: parseInt(form.calories),
-      time: form.time,
-      category: form.category,
-      fav: false,
-    };
-    setRecipes(prev => [newRecipe, ...prev]);
-    setForm({ name: '', emoji: '🍽️', calories: '', time: '', category: 'breakfast' });
-    setShowForm(false);
   };
 
   const filtered = recipes.filter(r => {
@@ -70,6 +86,12 @@ export default function RecipesPage() {
     const matchFilter = filter === 'all' || r.category === filter || (filter === 'favourites' && r.fav);
     return matchSearch && matchFilter;
   });
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <p className="text-gray-400">Loading recipes...</p>
+    </div>
+  );
 
   return (
     <div>
@@ -111,42 +133,46 @@ export default function RecipesPage() {
         </select>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {filtered.map(recipe => (
-          <div
-            key={recipe.id}
-            onClick={() => setSelected(recipe)}
-            className="bg-white border border-gray-200 rounded-2xl p-4 cursor-pointer hover:border-green-300 hover:shadow-sm transition-all"
-          >
-            <div className="flex justify-between items-start mb-3">
-              <span className="text-4xl">{recipe.emoji}</span>
-              <button
-                onClick={e => { e.stopPropagation(); toggleFav(recipe.id); }}
-                className={`text-xl ${recipe.fav ? 'text-yellow-400' : 'text-gray-300'}`}
-              >★</button>
+      {filtered.length === 0 ? (
+        <div className="text-center py-16">
+          <p className="text-4xl mb-3">🍽️</p>
+          <p className="text-gray-500">No recipes yet. Add your first one!</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {filtered.map(recipe => (
+            <div
+              key={recipe.id}
+              onClick={() => setSelected(recipe)}
+              className="bg-white border border-gray-200 rounded-2xl p-4 cursor-pointer hover:border-green-300 hover:shadow-sm transition-all"
+            >
+              <div className="flex justify-between items-start mb-3">
+                <span className="text-4xl">{recipe.emoji}</span>
+                <button
+                  onClick={e => { e.stopPropagation(); toggleFav(recipe.id); }}
+                  className={`text-xl ${recipe.fav ? 'text-yellow-400' : 'text-gray-300'}`}
+                >★</button>
+              </div>
+              <h3 className="font-medium text-gray-800 text-sm mb-2">{recipe.name}</h3>
+              <div className="flex items-center gap-3 text-xs text-gray-400">
+                <span className="flex items-center gap-1"><Clock size={11} />{recipe.time}</span>
+                <span>{recipe.calories} cal</span>
+              </div>
+              <span className="inline-block mt-2 text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full capitalize">
+                {recipe.category}
+              </span>
             </div>
-            <h3 className="font-medium text-gray-800 text-sm mb-2">{recipe.name}</h3>
-            <div className="flex items-center gap-3 text-xs text-gray-400">
-              <span className="flex items-center gap-1"><Clock size={11} />{recipe.time}</span>
-              <span>{recipe.calories} cal</span>
-            </div>
-            <span className="inline-block mt-2 text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full capitalize">
-              {recipe.category}
-            </span>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowForm(false)}>
           <div className="bg-white rounded-2xl p-6 w-96 shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <h3 className="font-bold text-gray-800 text-lg">Add new recipe</h3>
-              <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600">
-                <X size={20} />
-              </button>
+              <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
             </div>
-
             <div className="flex flex-col gap-4">
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">Recipe name</label>
@@ -158,7 +184,6 @@ export default function RecipesPage() {
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-green-400"
                 />
               </div>
-
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-2">Pick an emoji</label>
                 <div className="grid grid-cols-10 gap-1">
@@ -167,13 +192,10 @@ export default function RecipesPage() {
                       key={emoji}
                       onClick={() => setForm(f => ({ ...f, emoji }))}
                       className={`text-xl p-1 rounded-lg transition-all ${form.emoji === emoji ? 'bg-green-100 scale-110' : 'hover:bg-gray-100'}`}
-                    >
-                      {emoji}
-                    </button>
+                    >{emoji}</button>
                   ))}
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm font-medium text-gray-700 block mb-1">Calories</label>
@@ -196,7 +218,6 @@ export default function RecipesPage() {
                   />
                 </div>
               </div>
-
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">Category</label>
                 <select
@@ -209,12 +230,11 @@ export default function RecipesPage() {
                   <option value="dinner">Dinner</option>
                 </select>
               </div>
-
               <button
                 onClick={addRecipe}
                 className="w-full bg-green-500 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-green-600 transition-colors"
               >
-                Add recipe
+                Save recipe
               </button>
             </div>
           </div>
@@ -238,16 +258,12 @@ export default function RecipesPage() {
             <div className="flex gap-2 mt-4">
               <button
                 onClick={() => deleteRecipe(selected.id)}
-                className="flex-1 border border-red-200 text-red-500 py-2 rounded-xl text-sm font-medium hover:bg-red-50 transition-colors"
-              >
-                Delete
-              </button>
+                className="flex-1 border border-red-200 text-red-500 py-2 rounded-xl text-sm font-medium hover:bg-red-50"
+              >Delete</button>
               <button
                 onClick={() => setSelected(null)}
-                className="flex-1 bg-green-500 text-white py-2 rounded-xl text-sm font-medium hover:bg-green-600 transition-colors"
-              >
-                Close
-              </button>
+                className="flex-1 bg-green-500 text-white py-2 rounded-xl text-sm font-medium hover:bg-green-600"
+              >Close</button>
             </div>
           </div>
         </div>

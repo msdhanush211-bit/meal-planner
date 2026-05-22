@@ -6,11 +6,10 @@ import { Calendar, BookOpen, ShoppingCart, LogOut, User } from 'lucide-react';
 import { useSession, signOut } from 'next-auth/react';
 
 const navItems = [
-  { href: '/', label: 'Planner', icon: Calendar },
+  { href: '/planner', label: 'Planner', icon: Calendar },
   { href: '/recipes', label: 'Recipes', icon: BookOpen },
   { href: '/grocery', label: 'Grocery', icon: ShoppingCart },
 ];
-
 export default function Navbar() {
   const pathname = usePathname();
   const { data: session } = useSession();

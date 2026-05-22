@@ -4,8 +4,8 @@ import Navbar from '@/components/Navbar';
 import { SessionProvider } from 'next-auth/react';
 
 export const metadata: Metadata = {
-  title: 'Meal Planner',
-  description: 'Plan your weekly meals',
+  title: 'MealPlanner — Plan your week',
+  description: 'Plan your weekly meals with drag and drop',
 };
 
 export default function RootLayout({
@@ -17,10 +17,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <SessionProvider>
-          <Navbar />
-          <main className="ml-56 min-h-screen p-8 bg-gray-50">
-            {children}
-          </main>
+          {children}
         </SessionProvider>
       </body>
     </html>

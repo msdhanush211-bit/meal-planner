@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { X, Plus } from 'lucide-react';
 
@@ -24,18 +24,78 @@ type PlanType = { [key: string]: Recipe };
 export default function WeeklyPlanner() {
   const [plan, setPlan] = useState<PlanType>({});
   const [showPicker, setShowPicker] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  let draggingRecipe: Recipe | null = null;
+
+  useEffect(() => {
+    fetchPlan();
+  }, []);
+
+  const fetchPlan = async () => {
+    try {
+      const res = await fetch('/api/mealplan');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        const planMap: PlanType = {};
+        data.forEach((item: any) => {
+          planMap[`${item.day}-${item.meal}`] = {
+            id: item.recipeId,
+            name: item.recipeName,
+            emoji: item.recipeEmoji,
+            calories: item.recipeCalories,
+          };
+        });
+        setPlan(planMap);
+      }
+    } catch (error) {
+      console.error('Failed to fetch plan:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveMeal = async (day: string, meal: string, recipe: Recipe) => {
+    try {
+      await fetch('/api/mealplan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          day,
+          meal,
+          recipeId: recipe.id,
+          recipeName: recipe.name,
+          recipeEmoji: recipe.emoji,
+          recipeCalories: recipe.calories,
+        }),
+      });
+    } catch (error) {
+      console.error('Failed to save meal:', error);
+    }
+  };
+
+  const deleteMeal = async (day: string, meal: string) => {
+    try {
+      await fetch(`/api/mealplan?day=${day}&meal=${meal}`, { method: 'DELETE' });
+    } catch (error) {
+      console.error('Failed to delete meal:', error);
+    }
+  };
 
   const assignMeal = (key: string, recipe: Recipe) => {
+    const [day, meal] = key.split('-');
     setPlan(prev => ({ ...prev, [key]: recipe }));
+    saveMeal(day, meal, recipe);
     setShowPicker(null);
   };
 
   const clearMeal = (key: string) => {
+    const [day, meal] = key.split('-');
     setPlan(prev => {
       const next = { ...prev };
       delete next[key];
       return next;
     });
+    deleteMeal(day, meal);
   };
 
   const onDragEnd = (result: DropResult) => {
@@ -47,23 +107,48 @@ export default function WeeklyPlanner() {
 
     if (sourceKey === 'recipe-list') {
       const recipe = SAMPLE_RECIPES.find(r => r.id === draggableId);
-      if (recipe) setPlan(prev => ({ ...prev, [destKey]: recipe }));
+      if (recipe) {
+        const [day, meal] = destKey.split('-');
+        setPlan(prev => ({ ...prev, [destKey]: recipe }));
+        saveMeal(day, meal, recipe);
+      }
     } else {
       const sourceRecipe = plan[sourceKey];
       const destRecipe = plan[destKey];
-      setPlan(prev => {
-        const next = { ...prev };
-        if (sourceRecipe) next[destKey] = sourceRecipe;
-        else delete next[destKey];
-        if (destRecipe) next[sourceKey] = destRecipe;
-        else delete next[sourceKey];
-        return next;
-      });
+      const newPlan = { ...plan };
+
+      if (sourceRecipe) {
+        newPlan[destKey] = sourceRecipe;
+        const [destDay, destMeal] = destKey.split('-');
+        saveMeal(destDay, destMeal, sourceRecipe);
+      } else {
+        delete newPlan[destKey];
+        const [destDay, destMeal] = destKey.split('-');
+        deleteMeal(destDay, destMeal);
+      }
+
+      if (destRecipe) {
+        newPlan[sourceKey] = destRecipe;
+        const [srcDay, srcMeal] = sourceKey.split('-');
+        saveMeal(srcDay, srcMeal, destRecipe);
+      } else {
+        delete newPlan[sourceKey];
+        const [srcDay, srcMeal] = sourceKey.split('-');
+        deleteMeal(srcDay, srcMeal);
+      }
+
+      setPlan(newPlan);
     }
   };
 
   const totalMeals = Object.keys(plan).length;
   const totalCalories = Object.values(plan).reduce((sum, r) => sum + r.calories, 0);
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <p className="text-gray-400">Loading your meal plan...</p>
+    </div>
+  );
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
@@ -215,8 +300,7 @@ export default function WeeklyPlanner() {
               ))}
             </div>
             <button onClick={() => setShowPicker(null)} className="mt-4 w-full text-sm text-gray-400 hover:text-gray-600">
-              Cancel
-            </button>
+              Cancel</button>
           </div>
         </div>
       )}
